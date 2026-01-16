@@ -43,62 +43,84 @@ def print_recompilation_instructions():
     print("  make clean")
     print("  make")
 
-def replace_libnx(project_path, libnx_archive_path, args):
-    """Replaces the libnx/nx directory in the project path with the new one."""
-    print(f"Extracting {libnx_archive_path}...")
+def replace_libnx(project_path, archive_path, args):
+    """Replaces the libnx folder in the project with the one from the archive."""
     toplevel_dir = None
     try:
-        with tarfile.open(libnx_archive_path, "r:gz") as tar:
+        print("Extracting archive...")
+        with tarfile.open(archive_path, "r:gz") as tar:
+            members = tar.getmembers()
+            if not members:
+                print("Error: The archive is empty.")
+                return
+            
+            toplevel_dir = members[0].name.split('/')[0]
             tar.extractall()
-            toplevel_dir = tar.getnames()[0].split(os.path.sep)[0]
 
-        source_nx_path = os.path.join(toplevel_dir, 'nx')
-        if not os.path.isdir(source_nx_path):
-            print("Could not find an 'nx' directory in the extracted archive.")
+        # Path to the actual library source inside the extracted GitHub tarball
+        source_nx_path = os.path.join(toplevel_dir, "nx")
+        
+        if not os.path.exists(source_nx_path):
+            print(f"Error: Could not find 'nx' directory inside the extracted archive at {source_nx_path}.")
             return
 
-        target_path_libnx = os.path.join(project_path, 'libnx')
-        target_path_nx = os.path.join(project_path, 'nx')
+        # Common directory names used in homebrew projects for libnx source
+        potential_paths = [
+            os.path.join(project_path, "libnx"),
+            os.path.join(project_path, "nx")
+        ]
+        
         target_path = None
-
-        if os.path.isdir(target_path_libnx):
-            target_path = target_path_libnx
-        elif os.path.isdir(target_path_nx):
-            target_path = target_path_nx
+        for path in potential_paths:
+            if os.path.exists(path):
+                target_path = path
+                break
         
         if not target_path:
-            print("No local 'libnx' or 'nx' directory found in the project.")
-            print("This tool only patches projects with a local copy of the library.")
-            print("If your project uses libnx from devkitPro, please update it by running:")
-            print("  dkp-pacman -Syu switch-dev")
-            return
+            # If neither exists, we default to creating 'libnx' in the project root
+            target_path = os.path.join(project_path, "libnx")
+            print(f"Note: No existing libnx folder found. Will create new one at {target_path}")
+        else:
+            print(f"Warning: {target_path} will be DELETED and replaced with the latest version.")
 
-        print(f"Found existing library at: {target_path}")
-        print("This will be DELETED and replaced with the latest version.")
-        
         if not args.yes:
             confirm = input("Are you sure you want to continue? (y/N): ")
             if confirm.lower() != 'y':
                 print("Aborting. No changes have been made.")
                 return
 
-        print(f"Replacing {target_path}...")
-        shutil.rmtree(target_path)
+        print(f"Updating {target_path}...")
+        
+        # Remove old folder if it exists
+        if os.path.exists(target_path):
+            if os.path.isfile(target_path):
+                os.remove(target_path)
+            else:
+                shutil.rmtree(target_path)
+        
+        # Move the new source into place
         shutil.move(source_nx_path, target_path)
-        print("Successfully replaced libnx.")
+        
+        print("Successfully patched libnx source.")
         print_recompilation_instructions()
 
     except (tarfile.TarError, OSError, IndexError) as e:
         print(f"An error occurred during the replacement process: {e}")
     finally:
+        # Cleanup
         if toplevel_dir and os.path.exists(toplevel_dir):
             shutil.rmtree(toplevel_dir)
+        if os.path.exists(archive_path):
+            os.remove(archive_path)
 
 def main():
     parser = argparse.ArgumentParser(description="Libnx Source Patcher")
-    parser.add_argument("project_path", help="Path to the homebrew project")
+    parser.add_argument("project_path", help="Path to the homebrew project source code")
     parser.add_argument("-y", "--yes", action="store_true", help="Automatically answer yes to prompts")
     args = parser.parse_args()
+
+    # Expand user paths (like ~/) if provided
+    args.project_path = os.path.expanduser(args.project_path)
 
     if not os.path.isdir(args.project_path):
         print(f"Error: The specified path '{args.project_path}' is not a valid directory.")
@@ -108,8 +130,8 @@ def main():
     libnx_archive = download_latest_libnx()
     if libnx_archive:
         replace_libnx(args.project_path, libnx_archive, args)
-        if os.path.exists(libnx_archive):
-            os.remove(libnx_archive)
+    else:
+        print("Failed to download libnx. Check your connection to GitHub.")
 
 if __name__ == "__main__":
     main()
