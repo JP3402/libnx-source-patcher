@@ -6,6 +6,13 @@ This tool is designed for Nintendo Switch homebrew developers. It automates the 
 
 This tool works on **source code projects**, not compiled `.nro` or `.ovl` files. Due to the complexities of compiled binaries, it is not feasible to patch them directly. The only reliable way to update the `libnx` version of an application is to recompile it from source with the updated library.
 
+## Installation
+
+Before running the script, install the required dependency:
+
+```bash
+pip install -r requirements.txt
+
 ## Usage
 
 Run the script and provide the path to your homebrew project directory:
