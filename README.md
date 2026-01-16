@@ -20,7 +20,7 @@ pip install -r requirements.txt
 Run the script and provide the path to your homebrew project directory:
 
 ```
-python3 source/main.py /path/to/your/project
+python3 main.py /path/to/your/project
 ```
 
 The script will:
